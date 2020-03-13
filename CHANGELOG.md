@@ -13,8 +13,6 @@
   * API extensions:
     - Added new methods to `Map`: `get_all_landmarks`, `get_all_landmarks_from_id` and `get_all_landmarks_of_type`
 
-## CARLA 0.9.8
-
   * Added beta version sumo-carla co-simulation
   * Traffic Manager:
     - Added benchmark
