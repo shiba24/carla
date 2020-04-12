@@ -92,7 +92,15 @@ def main():
     client = carla.Client(args.host, args.port)
     client.set_timeout(10.0)
 
+    synchronous_master = False
+
     try:
+        print(client.get_available_maps())
+        # world = client.load_world('/Game/Carla/Maps/Town02')
+
+        # settings = world.get_settings()
+        # settings.fixed_delta_seconds = 0.001
+        # world.apply_settings(settings)
 
         world = client.get_world()
 
@@ -102,7 +110,6 @@ def main():
             traffic_manager.set_hybrid_physics_mode(True)
 
 
-        synchronous_master = False
 
         if args.sync:
             settings = world.get_settings()
@@ -110,7 +117,7 @@ def main():
             if not settings.synchronous_mode:
                 synchronous_master = True
                 settings.synchronous_mode = True
-                settings.fixed_delta_seconds = 0.05
+                settings.fixed_delta_seconds = 0.001
                 world.apply_settings(settings)
             else:
                 synchronous_master = False

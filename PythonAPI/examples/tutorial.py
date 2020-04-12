@@ -9,6 +9,7 @@
 import glob
 import os
 import sys
+import numpy as np
 
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
@@ -22,6 +23,22 @@ import carla
 
 import random
 import time
+
+
+def save_events(image):
+    print('Saving events...')
+    # txt_name = os.path.join(output_prefix, EVENT_TEXT)
+    f = open('_out/event/%09d.txt' % image.frame, 'wb')
+
+    # [t, x(w), y(h), p {0, 1}]
+    for _, msg, _ in tqdm(bag.read_messages(topics=EVENT_TOPIC_NAME)):
+        t = np.array([e.ts.to_sec() for e in msg.events])
+        x = np.array([e.x for e in msg.events])
+        y = np.array([e.y for e in msg.events])
+        p = np.array([e.polarity for e in msg.events]).astype(np.int16)
+        output = np.concatenate([t[:, None], x[:, None], y[:, None], p[:, None]], axis=1)
+        np.savetxt(f, output, fmt='%f %i %i %i')
+    f.close()
 
 
 def main():
@@ -41,6 +58,11 @@ def main():
         # Once we have a client we can retrieve the world that is currently
         # running.
         world = client.get_world()
+
+        # For event camera. 1000 Hz
+        settings = world.get_settings()
+        settings.fixed_delta_seconds = 0.001
+        world.apply_settings(settings)
 
         # The world contains the list blueprints that we can use for adding new
         # actors into the simulation.
@@ -87,10 +109,37 @@ def main():
         # receives an image. In this example we are saving the image to disk
         # converting the pixels to gray-scale.
         cc = carla.ColorConverter.LogarithmicDepth
-        camera.listen(lambda image: image.save_to_disk('_out/%06d.png' % image.frame, cc))
+        camera.listen(lambda image: image.save_to_disk('_out/depth/%09d.png' % image.frame, cc))
+
+        # # Add DVS camera, at the same position of depth
+        dvs_camera = world.spawn_actor(
+            blueprint_library.find('sensor.camera.dvs'),
+            camera_transform, attach_to=vehicle)
+        actor_list.append(dvs_camera)
+        print('created %s' % dvs_camera.type_id)
+
+        # # def _save_event(image):
+        # #     np.save(open('_out/event/raw_%09d.npy' % image.frame, 'wb'), image.raw_data)
+        # #     np.save(open('_out/event/array_%09d.npy' % image.frame, 'wb'), image.to_array())
+        dvs_camera.listen(lambda image: image.save_to_disk('_out/event/%09d.txt' % image.frame))
+
+        # dvs_camera.listen(lambda image:
+        #     np.save(open('_out/event/%09d.npy' % image.frame, 'wb'), image.to_array())
+        # )
+
+        # Add RGB
+        rgb_camera = world.spawn_actor(blueprint_library.find('sensor.camera.rgb'), camera_transform, attach_to=vehicle)
+        actor_list.append(rgb_camera)
+        print('created %s' % rgb_camera.type_id)
+        rgb_camera.listen(lambda image:
+            image.save_to_disk('_out/color/%09d.png' % image.frame, carla.ColorConverter.Raw))
+
+        # array = np.frombuffer(image.to_image().raw_data, dtype=np.dtype("uint8"))
 
         # Oh wait, I don't like the location we gave to the vehicle, I'm going
         # to move it a bit forward.
+
+        # for 
         location = vehicle.get_location()
         location.x += 40
         vehicle.set_location(location)
@@ -98,20 +147,26 @@ def main():
 
         # But the city now is probably quite empty, let's add a few more
         # vehicles.
-        transform.location += carla.Location(x=40, y=-3.2)
-        transform.rotation.yaw = -180.0
-        for _ in range(0, 10):
-            transform.location.x += 8.0
+        # transform.location += carla.Location(x=40, y=-3.2)
+        # transform.rotation.yaw = -180.0
 
-            bp = random.choice(blueprint_library.filter('vehicle'))
+        while 1:
+            location = vehicle.get_location()
+            location.x += 1
+            vehicle.set_location(location)
+            print('moved vehicle to %s' % location)
 
-            # This time we are using try_spawn_actor. If the spot is already
-            # occupied by another object, the function will return None.
-            npc = world.try_spawn_actor(bp, transform)
-            if npc is not None:
-                actor_list.append(npc)
-                npc.set_autopilot()
-                print('created %s' % npc.type_id)
+            # transform.location.x += 8.0
+
+            # bp = random.choice(blueprint_library.filter('vehicle'))
+
+            # # This time we are using try_spawn_actor. If the spot is already
+            # # occupied by another object, the function will return None.
+            # npc = world.try_spawn_actor(bp, transform)
+            # if npc is not None:
+            #     actor_list.append(npc)
+            #     npc.set_autopilot()
+            #     print('created %s' % npc.type_id)
 
         time.sleep(5)
 
